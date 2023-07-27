@@ -8,10 +8,15 @@ interface CreatePostResult {
     props: PostProps
 }
 
-type GetPostResult = {
+type GetPostByIdResult = {
     id: string
     props: PostProps
 } | null
+
+type GetAllPostsResult = {
+    id: string
+    props: PostProps
+}[]
 
 class PostsRepository {
     private collection: firestore.CollectionReference
@@ -19,8 +24,46 @@ class PostsRepository {
     constructor() {
         this.collection = db.collection("posts")
     }
+
+    public async getAllPosts(
+        startIndex?: number,
+        limit?: number
+    ): Promise<GetAllPostsResult> {
+        const postRefs = await this.collection.listDocuments()
+        const posts: GetAllPostsResult = []
+
+        if (startIndex === null || startIndex === undefined) {
+            startIndex = 0
+        } else if (startIndex >= postRefs.length) {
+            throw new Error("The start index is greater than the publications length!")
+        }
+
+        if (!limit || limit > postRefs.length) {
+            limit = postRefs.length
+        }
+        
+        for (let i = startIndex; i < (limit + 1); i++) {
+            if (i > (postRefs.length - 1)) break
+
+            const postRef = postRefs[i]
+            const postSnapshot = await postRef.get()
+            const postData = postSnapshot.data()
+            
+            if (postSnapshot.exists && postData) {
+                const post = Post.create({
+                    title: postData.title,
+                    content: postData.content, 
+                    createdAt: postData.createdAt
+                }, postRef.id)
+
+                posts.push(post.toObject())
+            }
+        }
+
+        return posts
+    }
     
-    public async getPostById(id: string): Promise<GetPostResult> {
+    public async getPostById(id: string): Promise<GetPostByIdResult> {
         const postRef = this.collection.doc(id)
         const postSnapshot = await postRef.get()
         const postData = postSnapshot.data()
@@ -47,5 +90,9 @@ class PostsRepository {
     }
 }
 
+export {
+    CreatePostResult,
+    GetPostByIdResult,
+    GetAllPostsResult
+}
 export default PostsRepository
-export { CreatePostResult, GetPostResult }
